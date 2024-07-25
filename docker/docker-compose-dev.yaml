@@ -1,0 +1,70 @@
+version: "3"
+
+services:
+  coinsec_explorer:
+    container_name: coinsec_explorer
+    image: supertypo/coinsec-explorer:latest
+    restart: unless-stopped
+    environment:
+      API_URI: "http://localhost:8000"
+      API_WS_URI: "ws://localhost:8000"
+    ports:
+      - "8080:8080/tcp"
+
+  coinsec_rest_server:
+    container_name: coinsec_rest_server
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.dev
+    restart: unless-stopped
+    command: pipenv run uvicorn main:app --reload --host 0.0.0.0 --port 8000 
+    volumes:
+      - "../:/app"
+    environment:
+      COINSECD_HOST_1: coinsecd:16110
+      SQL_URI: postgresql+asyncpg://postgres:postgres@postgresql:5432/postgres
+    ports:
+      - "8000:8000/tcp"
+    links:
+      - coinsecd
+      - postgresql
+
+  coinsec_db_filler:
+    container_name: coinsec_db_filler
+    image: supertypo/coinsec-db-filler:latest
+    restart: unless-stopped
+    environment:
+      DEBUG: "true"
+      COINSECD_HOST_1: coinsecd:16110
+      SQL_URI: postgresql://postgres:postgres@postgresql:5432/postgres
+    links:
+      - coinsecd
+      - postgresql
+
+  postgresql:
+    container_name: postgresql
+    image: postgres:14-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432/tcp"
+    volumes:
+      - postgresql:/var/lib/postgresql/data/
+
+  coinsecd:
+    container_name: coinsecd
+    image: supertypo/coinsecd:latest
+    restart: unless-stopped
+    ports:
+      - "16110:16110/tcp"
+      - "16111:16111/tcp"
+    volumes:
+      - coinsecd:/app/data/
+    command: coinsecd --utxoindex --connect=kdxweb.coinseccalc.net
+
+volumes:
+  postgresql:
+  coinsecd:
