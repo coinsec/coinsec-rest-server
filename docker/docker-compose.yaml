@@ -3,7 +3,7 @@ version: "3"
 services:
   coinsec_explorer:
     container_name: coinsec_explorer
-    image: supertypo/coinsec-explorer:latest
+    image: coinsec/coinsec-explorer:latest
     restart: unless-stopped
     environment:
       API_URI: "http://localhost:8000"
@@ -26,7 +26,7 @@ services:
 
   coinsec_db_filler:
     container_name: coinsec_db_filler
-    image: supertypo/coinsec-db-filler:latest
+    image: coinsec/coinsec-db-filler:latest
     restart: unless-stopped
     environment:
       DEBUG: "true"
@@ -51,7 +51,7 @@ services:
 
   coinsecd:
     container_name: coinsecd
-    image: supertypo/coinsecd:latest
+    image: coinsec/coinsecd:latest
     restart: unless-stopped
     ports:
       - "16110:16110/tcp"
