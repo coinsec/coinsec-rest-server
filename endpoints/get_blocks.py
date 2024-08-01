@@ -5,12 +5,15 @@ from typing import List
 from fastapi import Query, Path, HTTPException
 from fastapi import Response
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, case, exists
 
 from dbsession import async_session
 from endpoints.get_virtual_chain_blue_score import current_blue_score_data
+from models.Subnetwork import Subnetwork
 from models.Block import Block
-from models.Transaction import Transaction, TransactionOutput, TransactionInput
+from models.BlockTransaction import BlockTransaction
+from models.ChainBlock import ChainBlock
+from models.Transaction import TransactionOutput, TransactionInput, Transaction
 from server import app, coinsecd_client
 
 IS_SQL_DB_CONFIGURED = os.getenv("SQL_URI") is not None
@@ -23,8 +26,8 @@ class VerboseDataModel(BaseModel):
     transactionIds: List[str] | None = ["533f8314bf772259fe517f53507a79ebe61c8c6a11748d93a0835551233b3311"]
     blueScore: str = "18483232"
     childrenHashes: List[str] | None = None
-    mergeSetBluesHashes: List[str] = ["580f65c8da9d436480817f6bd7c13eecd9223b37f0d34ae42fb17e1e9fda397e"]
-    mergeSetRedsHashes: List[str] = ["580f65c8da9d436480817f6bd7c13eecd9223b37f0d34ae42fb17e1e9fda397e"]
+    mergeSetBluesHashes: List[str] = []
+    mergeSetRedsHashes: List[str] = []
     isChainBlock: bool | None = None
 
 
@@ -144,7 +147,7 @@ async def get_blocks_from_bluescore(response: Response,
     if blueScore > current_blue_score_data["blue_score"] - 20:
         response.headers["Cache-Control"] = "no-store"
 
-    blocks = await get_blocks_from_db_by_bluescore(blueScore)
+    blocks_cb = await get_blocks_from_db_by_bluescore(blueScore)
 
     return [{
         "header": {
@@ -152,7 +155,7 @@ async def get_blocks_from_bluescore(response: Response,
             "hashMerkleRoot": block.hash_merkle_root,
             "acceptedIdMerkleRoot": block.accepted_id_merkle_root,
             "utxoCommitment": block.utxo_commitment,
-            "timestamp": round(block.timestamp.timestamp() * 1000),
+            "timestamp": block.timestamp,
             "bits": block.bits,
             "nonce": block.nonce,
             "daaScore": block.daa_score,
@@ -169,19 +172,21 @@ async def get_blocks_from_bluescore(response: Response,
             "transactionIds": [tx["verboseData"]["transactionId"] for tx in txs] if includeTransactions else None,
             "blueScore": block.blue_score,
             "childrenHashes": None,
-            "mergeSetBluesHashes": block.merge_set_blues_hashes,
-            "mergeSetRedsHashes": block.merge_set_reds_hashes,
-            "isChainBlock": None,
+            "mergeSetBluesHashes": block.merge_set_blues_hashes or [],
+            "mergeSetRedsHashes": block.merge_set_reds_hashes or [],
+            "isChainBlock": is_chain_block,
         }
-    } for block in blocks]
+    } for block, is_chain_block in blocks_cb]
 
 
 async def get_blocks_from_db_by_bluescore(blue_score):
     async with async_session() as s:
-        blocks = (await s.execute(select(Block)
-                                  .where(Block.blue_score == blue_score))).scalars().all()
+        blocks_cb = (await s.execute(
+            select(Block,
+                   case([(exists().where(ChainBlock.block_hash == Block.hash), True)], else_=False))
+            .where(Block.blue_score == blue_score))).all()
 
-    return blocks
+    return blocks_cb
 
 
 async def get_block_from_db(blockId):
@@ -189,15 +194,15 @@ async def get_block_from_db(blockId):
     Get the block from the database
     """
     async with async_session() as s:
-        requested_block = await s.execute(select(Block)
-                                          .where(Block.hash == blockId).limit(1))
+        blocks_cb = await s.execute(
+            select(Block,
+                   case([(exists(1).where(ChainBlock.block_hash == Block.hash), True)], else_=False))
+            .where(Block.hash == blockId).limit(1))
 
-        try:
-            requested_block = requested_block.first()[0]  # type: Block
-        except TypeError:
-            raise HTTPException(status_code=404, detail="Block not found", headers={
-                "Cache-Control": "public, max-age=3"
-            })
+        block_cb = blocks_cb.first()
+        if block_cb is None:
+            raise HTTPException(status_code=404, detail="Block not found", headers={"Cache-Control": "public, max-age=3"})
+        requested_block, is_chain_block = block_cb
 
     if requested_block:
         return {
@@ -206,7 +211,7 @@ async def get_block_from_db(blockId):
                 "hashMerkleRoot": requested_block.hash_merkle_root,
                 "acceptedIdMerkleRoot": requested_block.accepted_id_merkle_root,
                 "utxoCommitment": requested_block.utxo_commitment,
-                "timestamp": round(requested_block.timestamp.timestamp() * 1000),
+                "timestamp": requested_block.timestamp,
                 "bits": requested_block.bits,
                 "nonce": requested_block.nonce,
                 "daaScore": requested_block.daa_score,
@@ -223,9 +228,9 @@ async def get_block_from_db(blockId):
                 "transactionIds": None,  # information not in database
                 "blueScore": requested_block.blue_score,
                 "childrenHashes": None,  # information not in database
-                "mergeSetBluesHashes": requested_block.merge_set_blues_hashes,
-                "mergeSetRedsHashes": requested_block.merge_set_reds_hashes,
-                "isChainBlock": None,  # information not in database
+                "mergeSetBluesHashes": requested_block.merge_set_blues_hashes or [],
+                "mergeSetRedsHashes": requested_block.merge_set_reds_hashes or [],
+                "isChainBlock": is_chain_block,  # information not in database
             }
         }
     return None
@@ -241,23 +246,29 @@ async def get_block_transactions(blockId):
     tx_list = []
 
     async with async_session() as s:
-        transactions = await s.execute(select(Transaction).filter(Transaction.block_hash.contains([blockId])))
+        transactions = await s.execute(
+            select(Transaction, Subnetwork, BlockTransaction)
+            .join(Subnetwork,
+                  Transaction.subnetwork_id == Subnetwork.id)
+            .join(BlockTransaction,
+                  Transaction.transaction_id == BlockTransaction.transaction_id)
+            .filter(BlockTransaction.block_hash == blockId))
 
-        transactions = transactions.scalars().all()
+        transactions = transactions.all()
 
         tx_outputs = await s.execute(select(TransactionOutput)
                                      .where(TransactionOutput.transaction_id
-                                            .in_([tx.transaction_id for tx in transactions])))
+                                            .in_([tx.transaction_id for tx, sub, bt in transactions])))
 
         tx_outputs = tx_outputs.scalars().all()
 
         tx_inputs = await s.execute(select(TransactionInput)
                                     .where(TransactionInput.transaction_id
-                                           .in_([tx.transaction_id for tx in transactions])))
+                                           .in_([tx.transaction_id for tx, sub, bt in transactions])))
 
         tx_inputs = tx_inputs.scalars().all()
 
-    for tx in transactions:
+    for tx, sub, bt in transactions:
         tx_list.append({
             "inputs": [
                 {
@@ -280,12 +291,12 @@ async def get_block_transactions(blockId):
                         "scriptPublicKeyAddress": tx_out.script_public_key_address
                     }
                 } for tx_out in tx_outputs if tx_out.transaction_id == tx.transaction_id],
-            "subnetworkId": tx.subnetwork_id,
+            "subnetworkId": sub.subnetwork_id,
             "verboseData": {
                 "transactionId": tx.transaction_id,
                 "hash": tx.hash,
                 "mass": tx.mass,
-                "blockHash": tx.block_hash,
+                "blockHash": bt.block_hash,
                 "blockTime": tx.block_time
             }
         })

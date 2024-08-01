@@ -4,7 +4,7 @@ ARG REPO_DIR
 
 EXPOSE 8000
 
-ENV COINSECD_HOST_1=n.seeder1.coinsecd.net:17110
+ENV COINSECD_HOST_1=n.testnet-dns.coinsec.network:17210
 ARG version
 ENV VERSION=$version
 

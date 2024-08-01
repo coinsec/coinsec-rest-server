@@ -21,7 +21,7 @@ services:
     volumes:
       - "../:/app"
     environment:
-      COINSECD_HOST_1: coinsecd:17110
+      COINSECD_HOST_1: coinsecd:17210
       SQL_URI: postgresql+asyncpg://postgres:postgres@postgresql:5432/postgres
     ports:
       - "8000:8000/tcp"
@@ -35,7 +35,7 @@ services:
     restart: unless-stopped
     environment:
       DEBUG: "true"
-      COINSECD_HOST_1: coinsecd:17110
+      COINSECD_HOST_1: coinsecd:17210
       SQL_URI: postgresql://postgres:postgres@postgresql:5432/postgres
     links:
       - coinsecd
@@ -59,8 +59,8 @@ services:
     image: coinsec/coinsecd:latest
     restart: unless-stopped
     ports:
-      - "17110:17110/tcp"
-      - "17111:17111/tcp"
+      - "17210:17210/tcp"
+      - "17211:17211/tcp"
     volumes:
       - coinsecd:/app/data/
     command: coinsecd --utxoindex --connect=kdxweb.coinseccalc.net
