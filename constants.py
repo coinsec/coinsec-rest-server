@@ -1,6 +1,6 @@
 import os
 
-NETWORK_TYPE = os.getenv('NETWORK_TYPE', 'mainnet').lower()
+NETWORK_TYPE = os.getenv('NETWORK_TYPE', 'testnet').lower()
 
 match NETWORK_TYPE:
     case "mainnet":

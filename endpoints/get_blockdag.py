@@ -7,15 +7,15 @@ from server import app, coinsecd_client
 
 
 class BlockdagResponse(BaseModel):
-    networkName: str = "coinsec-mainnet"
-    blockCount: str = "260890"
-    headerCount: str = "2131312"
-    tipHashes: List[str] = ["78273854a739e3e379dfd34a262bbe922400d8e360e30e3f31228519a334350a"]
-    difficulty: float = 3870677677777.2
-    pastMedianTime: str = "1656455670700"
-    virtualParentHashes: List[str] = ["78273854a739e3e379dfd34a262bbe922400d8e360e30e3f31228519a334350a"]
-    pruningPointHash: str = "5d32a9403273a34b6551b84340a1459ddde2ae6ba59a47987a6374340ba41d5d",
-    virtualDaaScore: str = "19989141"
+    networkName: str = "coinsec-testnet-10"
+    blockCount: str = "1028"
+    headerCount: str = "1028"
+    tipHashes: List[str] = ["84a9d698f28035defeb2796c53af88bc7cc2f0d732abf1c8b44570f471daa2f6"]
+    difficulty: float = 65536.01
+    pastMedianTime: str = "1722579749081"
+    virtualParentHashes: List[str] = ["84a9d698f28035defeb2796c53af88bc7cc2f0d732abf1c8b44570f471daa2f6"]
+    pruningPointHash: str = "f896a3034873be1739fc4359236899fd3d65d2bc94f9780df0d0da3eb1cc4370",
+    virtualDaaScore: str = "1027"
 
 
 @app.get("/info/blockdag", response_model=BlockdagResponse, tags=["Coinsec network info"])

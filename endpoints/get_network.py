@@ -7,21 +7,19 @@ from server import app, coinsecd_client
 
 
 class NetworkResponse(BaseModel):
-    networkName: str = "coinsec-mainnet"
-    blockCount: str = "261357"
-    headerCount: str = "23138783"
+    networkName: str = "coinsec-testnet-10"
+    blockCount: str = "1028"
+    headerCount: str = "1028"
     tipHashes: List[str] = [
-        "efdbe104c6275cf881583fba77834c8528fd1ab059f6b4737c42564d0d9fedbc",
-        "6affbe62baef0f1a562f166b9857844b03b51a8ec9b8417ceb308d53fdc239a2"
+        "84a9d698f28035defeb2796c53af88bc7cc2f0d732abf1c8b44570f471daa2f6"
     ]
-    difficulty: float = 3887079905014.09
-    pastMedianTime: str = "1656456088196"
+    difficulty: float = 65536.01
+    pastMedianTime: str = "1722579749081"
     virtualParentHashes: List[str] = [
-        "6affbe62baef0f1a562f166b9857844b03b51a8ec9b8417ceb308d53fdc239a2",
-        "efdbe104c6275cf881583fba77834c8528fd1ab059f6b4737c42564d0d9fedbc"
+        "84a9d698f28035defeb2796c53af88bc7cc2f0d732abf1c8b44570f471daa2f6"
     ]
-    pruningPointHash: str = "5d32a9403273a34b6551b84340a1459ddde2ae6ba59a47987a6374340ba41d5d"
-    virtualDaaScore: str = "19989984"
+    pruningPointHash: str = "f896a3034873be1739fc4359236899fd3d65d2bc94f9780df0d0da3eb1cc4370"
+    virtualDaaScore: str = "1027"
 
 
 @app.get("/info/network", response_model=NetworkResponse, tags=["Coinsec network info"])
